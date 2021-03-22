@@ -1,0 +1,90 @@
+.data
+.include "maze.s"
+
+
+.text
+# Carrega a imagem
+MAIN:	li 	t0,0xFF000000		# endereco inicial da Memoria VGA - Frame 0
+	la 	s0,maze			# endereço dos dados da tela na memoria
+	lw 	s1,0(s0)		# numero de colunas
+	addi	s1,s1,1
+	lw 	s2,4(s0)		# numero de linhas
+	addi 	s0,s0,8			# primeiro pixels depois das informações de nlin ncol
+	mul 	t1,s1,s2            	# numero total de pixels da imagem
+	li 	t2,0
+LOOP1: 	bge 	t2,t1,SMAZE		# Se for o último endereço então sai do loop
+	lw 	t3,0(s0)		# le um conjunto de *4 pixels* : word
+	sw 	t3,0(t0)		# escreve a word na memória VGA
+	addi 	t0,t0,4			# soma 4 ao endereço
+	addi 	s0,s0,4
+	addi 	t2,t2,4			# incrementa contador de bits
+	j 	LOOP1			# volta a verificar
+	
+#Resolve Maze (Primeira Linha)
+## Como na última linha sempre tem só 1 branco, pinto ele de vermelho.
+SMAZE:	li	s4, 0x07070707		# Cor Vermelha
+	lb	s3, 0(s0)		# Carrega no s3 o primeiro PIXEL
+	and	s3, s3,s4		# Faz a operação AND com Vermelho e o PIXEL
+	sb	s3, 0(t0)		# Colore o Pixel
+	addi	s0, s0, -1
+	addi	t0, t0, -1
+	beqz	s2, SBODY		# Ve se acabou as colunas
+	addi	s2, s2, -1
+	jal	SMAZE	
+	
+#Resolve Maze (Corpo)
+
+SBODY:	li	s8, 2
+	mul	s8, s8, s1
+	sub	t2, t2, s8		# Contador Precisa diminuir 2 vezes as linhas pois nao é percorrido
+LOOPSB:	addi	t2, t2, -1
+	beqz	t2, FIM
+	addi	s0, s0, -1
+	addi	t0, t0, -1
+	lb 	t3, 0(t0)		# Início do labirinto
+	bnez	t3, ARG
+	jal	LOOPSB
+	
+ARG:	li	t6,0			# Esquerda
+	li	s6,0
+	li	s5, 0xFFFFFFFF
+	lb	t3, -1(t0)
+	beqz	t3, ARG2
+	addi	t6,t6,1
+ARG2:	lb	t3, -8(t0)		#Em cima
+	beqz	t3, ARG3
+	addi	t6,t6,1
+ARG3:	lb	t3, 8(t0)		#Em baixo
+	beqz	t3, ARG4
+	sub	t3,t3,s5
+	beqz	t3, ARG4
+	addi 	t6,t6,1	
+ARG4:	lb	t3, 1(t0)		#Direita
+	beqz	t3, COMP
+	sub	t3,t3,s5
+	beqz	t3, COMP
+	addi	t6,t6,1
+COMP:	li	t5, 2
+	bge	t6,t5,RED	
+	j	LOOPSB
+
+RED:	li	s7,0x07070707		# Variável Vermelha (Pixel 1)
+	sb	s7, 0(t0)
+	jal LOOPSB
+	
+# devolve o controle ao sistema operacional
+FIM:	la 	s0,maze			# endereço dos dados da tela na memoria
+	lw 	s1,0(s0)		# numero de colunas
+	addi	s1, s1, 1
+	addi	s0, s0, 8
+	li 	t0, 0xFF000000		# endereco inicial da Memoria VGA - Frame 0
+	li	t1, 0x07070707
+LOOPF:	lw	t2, 0(s0)
+	and	t2, t2,t1
+	sw	t2, 0(t0)
+	addi	s1, s1, -4
+	addi	s0, s0, 4
+	addi	t0, t0, 4
+	bnez 	s1, LOOPF		# Se for o último endereço então sai do loop
+	li a7,10		# syscall de exit
+	ecall
