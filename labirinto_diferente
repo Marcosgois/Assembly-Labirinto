@@ -17,24 +17,22 @@ MAIN: 	la a0,maze
 draw_maze:
 	la	s0, maze		# S0 ( Endereço Atual Labirinto )
 	li	t0,0xFF009600		# Endereço do meio
-	li	t1,0xFFFFFFFF	
 	lw 	s1,0(s0)		# Número de Colunas
 	addi	s1,s1,1			# Acrescenta 1 nas Colunas
 	lw 	s2,4(s0)		# Número de linhas
 	addi	s2,s2,1			# Acrescenta 1 nas linhas
 	addi 	s0,s0,8			# Primeiro pixel depois das informações de linhas e colunas
- 	li	t2, 320
- 	li 	t3, 2
+ 	li	t2, 320			# Resolução Largura
+ 	li 	t3, 2			# Divisor 2
  	div	t1, s2, t3		# Número de Linhas / 2
- 	mul	t1, t1, t2		# Multiplico por 320
- 	neg	t1,t1			# (Número de Colunas / 2)*(320) (Negativo)
+ 	mul	t1, t1, t2		# Multiplico (Linhas / 2 * 320)
+ 	neg	t1, t1			# (Número de Linhas / 2)*(320) (Negativo)
+ 	li	t2, 160
  	add	t0, t0, t1		# Subtraio do Endereço Inicial
- 	li	t2, 160			# Metade dos Pixels de Largura
- 	neg	t4, s1			# Número de Colunas (Negativo)
- 	add	t4, t4, t2		# -(Coluna) + Metade dos Pixels
- 	add	t5, t2, t2		# t5 = 160 + 160 = 320 Total da Resolução
- 	add	t5, t4, t2		# Subtrai o total da resolução pelas Colunas do Labirinto Supracitado
- 	add	t0, t0, t4		# Endereço Inicial
+ 	div	t3, s1,t3		# Número de Colunas / 2
+ 	sub	t4, t2,t3
+ 	add	t0, t0, t4		# Endereço Inicial = Meio Deslocamento Direita -> Coluna
+ 	add	t4, t4, t4		
  	mv	s3, t0
  	mul	t1, s1, s2		# Quantidade de Pixels no Labirinto
  	li	t2,0			# Zera contador de Linha
@@ -42,7 +40,7 @@ draw_maze:
  	
 new_line:
 	li	t2,0
-	add	t0, t0, t5
+	add	t0, t0, t4
 	 	
 LOOP:	beqz 	t1, FLOOP		# Se for o último endereço então sai do loop
 	lw	t3,0(s0)
@@ -58,6 +56,7 @@ FLOOP:	ret
 
 #Resolve Maze
 solve_maze:
+	j	FIM
 	li	s4, 0x07070707		# Cor Vermelha
 	lb	s3, 0(s0)		# Carrega no s3 o primeiro PIXEL
 	and	s3, s3,s4		# Faz a operação AND com Vermelho e o PIXEL
