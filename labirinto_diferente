@@ -1,28 +1,64 @@
 .data
 .include "maze.s"
-
+CAMINHO: .space 153600 # Estimativa de pior caso: 4x 320x240/2 tamanho do maior labirinto
 
 .text
-# Carrega a imagem
-MAIN:	li 	t0,0xFF000000		# endereco inicial da Memoria VGA - Frame 0
-	la 	s0,maze			# endereço dos dados da tela na memoria
-	lw 	s1,0(s0)		# numero de colunas
-	addi	s1,s1,1
-	lw 	s2,4(s0)		# numero de linhas
-	addi 	s0,s0,8			# primeiro pixels depois das informações de nlin ncol
-	mul 	t1,s1,s2            	# numero total de pixels da imagem
-	li 	t2,0
-LOOP1: 	bge 	t2,t1,SMAZE		# Se for o último endereço então sai do loop
-	lw 	t3,0(s0)		# le um conjunto de *4 pixels* : word
-	sw 	t3,0(t0)		# escreve a word na memória VGA
-	addi 	t0,t0,4			# soma 4 ao endereço
-	addi 	s0,s0,4
-	addi 	t2,t2,4			# incrementa contador de bits
-	j 	LOOP1			# volta a verificar
+MAIN: 	la a0,maze
+	jal draw_maze
+	la a1,CAMINHO
+	jal solve_maze
+#	la a0,CAMINHO
+#	jal animate
+	li a7,10
+	ecall
 	
-#Resolve Maze (Primeira Linha)
-## Como na última linha sempre tem só 1 branco, pinto ele de vermelho.
-SMAZE:	li	s4, 0x07070707		# Cor Vermelha
+	
+# Preenche a tela de vermelho
+draw_maze:
+	la	s0, maze		# S0 ( Endereço Atual Labirinto )
+	li	t0,0xFF009600		# Endereço do meio
+	li	t1,0xFFFFFFFF	
+	lw 	s1,0(s0)		# Número de Colunas
+	addi	s1,s1,1			# Acrescenta 1 nas Colunas
+	lw 	s2,4(s0)		# Número de linhas
+	addi	s2,s2,1			# Acrescenta 1 nas linhas
+	addi 	s0,s0,8			# Primeiro pixel depois das informações de linhas e colunas
+ 	li	t2, 320
+ 	li 	t3, 2
+ 	div	t1, s2, t3		# Número de Linhas / 2
+ 	mul	t1, t1, t2		# Multiplico por 320
+ 	neg	t1,t1			# (Número de Colunas / 2)*(320) (Negativo)
+ 	add	t0, t0, t1		# Subtraio do Endereço Inicial
+ 	li	t2, 160			# Metade dos Pixels de Largura
+ 	neg	t4, s1			# Número de Colunas (Negativo)
+ 	add	t4, t4, t2		# -(Coluna) + Metade dos Pixels
+ 	add	t5, t2, t2		# t5 = 160 + 160 = 320 Total da Resolução
+ 	add	t5, t4, t2		# Subtrai o total da resolução pelas Colunas do Labirinto Supracitado
+ 	add	t0, t0, t4		# Endereço Inicial
+ 	mv	s3, t0
+ 	mul	t1, s1, s2		# Quantidade de Pixels no Labirinto
+ 	li	t2,0			# Zera contador de Linha
+ 	j	LOOP
+ 	
+new_line:
+	li	t2,0
+	add	t0, t0, t5
+	 	
+LOOP:	beqz 	t1, FLOOP		# Se for o último endereço então sai do loop
+	lw	t3,0(s0)
+	sw 	t3,0(t0)		# escreve a word na memória VGA
+	addi 	t1,t1,-4		# soma 4 ao endereço
+	addi	s0,s0,4
+	addi	t0,t0,4
+	addi	t2,t2,4
+	bge	t2, s1, new_line
+	j 	LOOP			# volta a verificar
+FLOOP:	ret
+# Carrega a imagem
+
+#Resolve Maze
+solve_maze:
+	li	s4, 0x07070707		# Cor Vermelha
 	lb	s3, 0(s0)		# Carrega no s3 o primeiro PIXEL
 	and	s3, s3,s4		# Faz a operação AND com Vermelho e o PIXEL
 	sb	s3, 0(t0)		# Colore o Pixel
@@ -30,7 +66,7 @@ SMAZE:	li	s4, 0x07070707		# Cor Vermelha
 	addi	t0, t0, -1
 	beqz	s2, SBODY		# Ve se acabou as colunas
 	addi	s2, s2, -1
-	jal	SMAZE	
+	jal	solve_maze	
 	
 #Resolve Maze (Corpo)
 
@@ -73,18 +109,5 @@ RED:	li	s7,0x07070707		# Variável Vermelha (Pixel 1)
 	jal LOOPSB
 	
 # devolve o controle ao sistema operacional
-FIM:	la 	s0,maze			# endereço dos dados da tela na memoria
-	lw 	s1,0(s0)		# numero de colunas
-	addi	s1, s1, 1
-	addi	s0, s0, 8
-	li 	t0, 0xFF000000		# endereco inicial da Memoria VGA - Frame 0
-	li	t1, 0x07070707
-LOOPF:	lw	t2, 0(s0)
-	and	t2, t2,t1
-	sw	t2, 0(t0)
-	addi	s1, s1, -4
-	addi	s0, s0, 4
-	addi	t0, t0, 4
-	bnez 	s1, LOOPF		# Se for o último endereço então sai do loop
-	li a7,10		# syscall de exit
+FIM:	li a7,10		# syscall de exit
 	ecall
