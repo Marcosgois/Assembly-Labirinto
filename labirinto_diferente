@@ -1,6 +1,7 @@
 .data
 .include "maze.s"
 CAMINHO: .space 153600 # Estimativa de pior caso: 4x 320x240/2 tamanho do maior labirinto
+BIFURC:	.space 1000
 
 .text
 MAIN: 	la a0,maze
@@ -33,7 +34,7 @@ draw_maze:
  	sub	t4, t2,t3
  	add	t0, t0, t4		# Endereço Inicial = Meio Deslocamento Direita -> Coluna
  	add	t4, t4, t4		
- 	mv	s3, t0
+ 	mv	s3, t0			# Endereço Inicial
  	mul	t1, s1, s2		# Quantidade de Pixels no Labirinto
  	li	t2,0			# Zera contador de Linha
  	j	LOOP
@@ -56,57 +57,90 @@ FLOOP:	ret
 
 #Resolve Maze
 solve_maze:
-	j	FIM
-	li	s4, 0x07070707		# Cor Vermelha
-	lb	s3, 0(s0)		# Carrega no s3 o primeiro PIXEL
-	and	s3, s3,s4		# Faz a operação AND com Vermelho e o PIXEL
-	sb	s3, 0(t0)		# Colore o Pixel
-	addi	s0, s0, -1
-	addi	t0, t0, -1
-	beqz	s2, SBODY		# Ve se acabou as colunas
-	addi	s2, s2, -1
+	ebreak
+	li	t6, 0x07070707		# Cor Vermelha
+	li	t2, 320			# Resolução Largura
+	li	t1, 2
+	div	t1, s1, t1
+	add	s3, s3, t1		# Começando pelo Primeiro Pixel
+	addi	s3, s3, -1		# Ajusta primeiro pixel
+	sb	t6, 0(s3)		# Carrega no s3 o primeiro PIXEL
+	mv	t1, s3			# Endereço do s3
+	sw	t1, 0(a1)		# Armazena primeiro endereço no "CAMINHO"
+	add	t1, t1, t2		# Descendo o Pixel
+	j	LOOPsm
+LOOPsm:
+	sb	t6, 0(t1)		# Carrega no s3 o primeiro PIXEL
+	mv	a1, t1
+	addi	a1, a1, 4
+	addi	s11, s11, 4
+	li	s2, zero
+	li	s3, zero
+	li	s4, zero
+	# Confere Pixels Vizinhos
+LADOESQ:				# Confere Pixel da Esquerda
+	addi	t1, t1, -1
+	lb	t3, 0(t1)
+	addi	t1, t1, 1
+	beqz	t3, EMBAIXO
+	addi	t4, t4, 1
+	li	s2, 1			# s2 indica vizinho esquerdo
+EMBAIXO:
+	add	t1, t1, t2		# Confere Pixel de Baixo
+	lb	t3, 0(t1)
+	neg	t2, t2
+	add	t1, t1, t2
+	beqz	t3, LADODIR
+	addi	t4, t4, 1
+	li	s3, 1			# s3 indica vizinho em baixo
+LADODIR:				# Confere Pixel da Direita
+	addi	t1, t1, 1
+	lb	t3, 0(t1)
+	addi	t1, t1, -1
+	beqz	t3, DECIDELADO
+	addi 	t4, t4, 1
+	li	s4, 1			# s2 indica vizinho direito
+DECIDELADO:
+	mv	s5, zero
+	bnez	s2, 1			# S2 ESQUERDO
+	jal	VERIFICAPILHA
+	bnez	s5, 1
+	addi	t1, t1, -1
+	j	LOOPsm
+1:
+	mv	s5, zero
+	bnez	s3, 2			# S3 EM BAIXO
+	jal	VERIFICAPILHA
+	bnez	s5, 2
+	add	t1, t1, t2
+	j	LOOPsm
+2:
+	mv	s5, zero
+	bnez	s4, SEM_SAIDA		# S4 DIREITO
+	jal	VERIFICAPILHA
+	bnez	s5, TESTAEMB
+	addi	t1, t1, 1
+	j	LOOPsm
+## PAREI AQUI, IMPLEMENTAR CASO SEJA SEM SAÍDA!
+	ebreak
 	jal	solve_maze	
+SEM_SAIDA:
+	mv	t1, t3
+	addi	a1, a1, -4
+	addi	s11, s11, -4
+	lw	t1, 0(a1)
 	
-#Resolve Maze (Corpo)
+VERIFICAPILHA:
+	mv	s10, zero
+LOOPVP:	ble	s10, s11, RETORNA
+	mv	s9, a2
+	lw	s8, 0(s9)
+	lw	s7, 0(t1)
+	bne	s8, s7, LOOPVP
+	addi	s5, s5, 1
+RETORNA:
+	ret	
 
-SBODY:	li	s8, 2
-	mul	s8, s8, s1
-	sub	t2, t2, s8		# Contador Precisa diminuir 2 vezes as linhas pois nao é percorrido
-LOOPSB:	addi	t2, t2, -1
-	beqz	t2, FIM
-	addi	s0, s0, -1
-	addi	t0, t0, -1
-	lb 	t3, 0(t0)		# Início do labirinto
-	bnez	t3, ARG
-	jal	LOOPSB
-	
-ARG:	li	t6,0			# Esquerda
-	li	s6,0
-	li	s5, 0xFFFFFFFF
-	lb	t3, -1(t0)
-	beqz	t3, ARG2
-	addi	t6,t6,1
-ARG2:	lb	t3, -8(t0)		#Em cima
-	beqz	t3, ARG3
-	addi	t6,t6,1
-ARG3:	lb	t3, 8(t0)		#Em baixo
-	beqz	t3, ARG4
-	sub	t3,t3,s5
-	beqz	t3, ARG4
-	addi 	t6,t6,1	
-ARG4:	lb	t3, 1(t0)		#Direita
-	beqz	t3, COMP
-	sub	t3,t3,s5
-	beqz	t3, COMP
-	addi	t6,t6,1
-COMP:	li	t5, 2
-	bge	t6,t5,RED	
-	j	LOOPSB
-
-RED:	li	s7,0x07070707		# Variável Vermelha (Pixel 1)
-	sb	s7, 0(t0)
-	jal LOOPSB
-	
 # devolve o controle ao sistema operacional
 FIM:	li a7,10		# syscall de exit
 	ecall
